@@ -52,7 +52,7 @@
 // If you are using GitHub Pages with a repository name (not username.github.io root),
 // set BASE_PATH to the repo name, e.g. '/f1-customizer'.
 // If running locally or at the root, leave it as ''.
-const BASE_PATH = '';
+const BASE_PATH = '/F1-Drivers-Image';
 
 // IMPORTANT: These paths MUST exist in your repo when deployed
 const faces = {
