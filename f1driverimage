@@ -5,10 +5,11 @@
   <title>F1 Driver Outfit Customizer</title>
   <style>
     body { font-family: Arial, sans-serif; background:#111; color:#eee; padding:20px; }
-    select, input { margin: 6px 0; }
-    canvas { background:#222; margin-top:20px; }
+    select, input, button { margin: 6px 0; width: 100%; }
+    canvas { background:#222; margin-top:20px; border:1px solid #444; }
     .panel { display:flex; gap:40px; flex-wrap:wrap; }
     .controls { max-width:300px; }
+    .hint { font-size:12px; color:#aaa; }
   </style>
 </head>
 <body>
@@ -17,101 +18,157 @@
   <div class="panel">
     <div class="controls">
       <h3>Preset assets</h3>
-      <label>Face:</label><br />
-      <select id="faceSelect"></select><br />
 
-      <label>Suit:</label><br />
-      <select id="suitSelect"></select><br />
+      <label>Face:</label>
+      <select id="faceSelect"></select>
 
-      <h3>Custom uploads</h3>
-      <label>Upload face:</label><br />
-      <input type="file" id="faceUpload" accept="image/*" /><br />
+      <label>Suit:</label>
+      <select id="suitSelect"></select>
 
-      <label>Driver name:</label><br />
-      <input type="text" id="driverName" placeholder="Oscar Piastri" /><br />
+      <p class="hint">If an image is missing, a placeholder will be shown instead of crashing.</p>
 
-      <label>Country code (e.g. AUS, ITA):</label><br />
-      <input type="text" id="countryCode" placeholder="AUS" /><br />
+      <h3>Custom input</h3>
+
+      <label>Upload custom face:</label>
+      <input type="file" id="faceUpload" accept="image/*" />
+
+      <label>Driver name:</label>
+      <input type="text" id="driverName" placeholder="Oscar Piastri" />
+
+      <label>Country code:</label>
+      <input type="text" id="countryCode" placeholder="AUS" />
 
       <button onclick="renderImage()">Render</button>
     </div>
 
     <div>
       <canvas id="canvas" width="400" height="800"></canvas>
+      <div id="status" class="hint"></div>
     </div>
   </div>
 
 <script>
-// ---- CONFIG ----
-// You add your own assets here
+// ================= CONFIG =================
+// If you are using GitHub Pages with a repository name (not username.github.io root),
+// set BASE_PATH to the repo name, e.g. '/f1-customizer'.
+// If running locally or at the root, leave it as ''.
+const BASE_PATH = '';
+
+// IMPORTANT: These paths MUST exist in your repo when deployed
 const faces = {
-  piastri: 'https://ratings-images-prod.pulse.ea.com/F1-25/portraits/p4.png?im=FaceCrop,algorithm=dnn,padding=0.7,width=256,height=256',
-  leclerc: 'assets/faces/leclerc.png'
+  // Oscar Piastri
+  piastri: `${BASE_PATH}/assets/faces/piastri.png`,
+  // Example additional face
+  leclerc: `${BASE_PATH}/assets/faces/leclerc.png`
 };
 
 const suits = {
-  ferrari: 'assets/suits/ferrari.png',
-  mclaren: 'assets/suits/mclaren.png'
+  ferrari: `${BASE_PATH}/assets/suits/ferrari.png`,
+  mclaren: `${BASE_PATH}/assets/suits/mclaren.png`
 };
 
-// ---- SETUP ----
+// =============== SETUP ====================
 const faceSelect = document.getElementById('faceSelect');
 const suitSelect = document.getElementById('suitSelect');
-
-Object.keys(faces).forEach(k => faceSelect.add(new Option(k, k)));
-Object.keys(suits).forEach(k => suitSelect.add(new Option(k, k)));
-
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
 
+Object.keys(faces).forEach(key => faceSelect.add(new Option(key, key)));
+Object.keys(suits).forEach(key => suitSelect.add(new Option(key, key)));
+
 let uploadedFaceImg = null;
 
-document.getElementById('faceUpload').addEventListener('change', e => {
-  const file = e.target.files[0];
-  if (!file) return;
-  const img = new Image();
-  img.onload = () => uploadedFaceImg = img;
-  img.src = URL.createObjectURL(file);
-});
+// ============ IMAGE HELPERS ================
+// Safe loader: NEVER throws, always resolves
+function setStatus(msg) {
+  document.getElementById('status').textContent = msg;
+}
 
-function loadImage(src) {
-  return new Promise(res => {
+function loadImageSafe(src) {
+  return new Promise(resolve => {
     const img = new Image();
-    img.onload = () => res(img);
+    img.onload = () => {
+      setStatus('Loaded image: ' + src);
+      resolve(img);
+    };
+    img.onerror = () => {
+      setStatus('FAILED to load: ' + src);
+      console.warn('Image failed to load, using placeholder:', src);
+      resolve(null);
+    };
     img.src = src;
   });
 }
 
+function drawPlaceholder(x, y, w, h, label) {
+  ctx.fillStyle = '#444';
+  ctx.fillRect(x, y, w, h);
+  ctx.strokeStyle = '#888';
+  ctx.strokeRect(x, y, w, h);
+  ctx.fillStyle = '#ccc';
+  ctx.font = '14px Arial';
+  ctx.textAlign = 'center';
+  ctx.fillText(label, x + w / 2, y + h / 2);
+}
+
+// ============ FILE UPLOAD ==================
+document.getElementById('faceUpload').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const img = new Image();
+  img.onload = () => {
+    uploadedFaceImg = img;
+    renderImage();
+  };
+  img.src = URL.createObjectURL(file);
+});
+
+// ============ MAIN RENDER ==================
 async function renderImage() {
-  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  // Load suit
-  const suit = await loadImage(suits[suitSelect.value]);
-  ctx.drawImage(suit, 0, 0, canvas.width, canvas.height);
+  // --- Suit ---
+  const suitPath = suits[suitSelect.value];
+  const suitImg = suitPath ? await loadImageSafe(suitPath) : null;
 
-  // Load face
-  let face;
-  if (uploadedFaceImg) {
-    face = uploadedFaceImg;
+  if (suitImg) {
+    ctx.drawImage(suitImg, 0, 0, canvas.width, canvas.height);
   } else {
-    face = await loadImage(faces[faceSelect.value]);
+    drawPlaceholder(0, 0, canvas.width, canvas.height, 'SUIT MISSING');
   }
 
-  // Draw face (adjust position/size per your assets)
-  ctx.drawImage(face, 130, 40, 140, 140);
+  // --- Face ---
+  let faceImg = uploadedFaceImg;
+  if (!faceImg) {
+    const facePath = faces[faceSelect.value];
+    faceImg = facePath ? await loadImageSafe(facePath) : null;
+  }
 
-  // Name + flag
-  const name = document.getElementById('driverName').value || faceSelect.value;
+  if (faceImg) {
+    ctx.drawImage(faceImg, 130, 40, 140, 140);
+  } else {
+    drawPlaceholder(130, 40, 140, 140, 'FACE');
+  }
+
+  // --- Text ---
+  const name = document.getElementById('driverName').value || faceSelect.value || 'DRIVER';
   const country = document.getElementById('countryCode').value || '';
 
-  ctx.font = '24px Arial';
   ctx.fillStyle = 'white';
   ctx.textAlign = 'center';
-  ctx.fillText(name.toUpperCase(), canvas.width/2, 230);
+
+  ctx.font = '24px Arial';
+  ctx.fillText(name.toUpperCase(), canvas.width / 2, 230);
 
   ctx.font = '18px Arial';
-  ctx.fillText(country.toUpperCase(), canvas.width/2, 260);
+  ctx.fillText(country.toUpperCase(), canvas.width / 2, 260);
 }
+
+// ============ BASIC SELF-TESTS ==============
+// These are runtime sanity checks (not unit tests)
+console.assert(canvas.width === 400, 'Canvas width should be 400');
+console.assert(typeof renderImage === 'function', 'renderImage should exist');
 </script>
 </body>
 </html>
