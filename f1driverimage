@@ -45,7 +45,7 @@
 // ---- CONFIG ----
 // You add your own assets here
 const faces = {
-  piastri: 'assets/faces/piastri.png',
+  piastri: 'https://ratings-images-prod.pulse.ea.com/F1-25/portraits/p4.png?im=FaceCrop,algorithm=dnn,padding=0.7,width=256,height=256',
   leclerc: 'assets/faces/leclerc.png'
 };
 
